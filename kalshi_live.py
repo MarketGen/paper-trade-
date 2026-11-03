@@ -20,6 +20,16 @@ def val(x,*keys,default=None):
         except (TypeError,ValueError): pass
     return default
 
+def ts(m, now):
+    # Kalshi commonly supplies ISO-8601 close_time; accept epoch fields too.
+    n=val(m,"close_time_ts","close_ts")
+    if n is not None: return n
+    raw=m.get("close_time") or m.get("expiration_time")
+    if raw:
+        try: return datetime.fromisoformat(raw.replace("Z","+00:00")).timestamp()
+        except (ValueError,TypeError): pass
+    return now+900
+
 def markets():
     u=KALSHI+"/markets?"+urlencode({"series_ticker":"KXBTC15M","status":"open","limit":20})
     return get(u).get("markets",[])
@@ -84,9 +94,19 @@ def main():
         try:
             spot=float(get(SPOT)["price"]); prices.append(spot); ms=markets()
             if not ms: raise RuntimeError("No open KXBTC15M markets returned by public API.")
-            now=time.time(); ms.sort(key=lambda m:abs((val(m,"close_time_ts","close_ts",default=now+900) or now+900)-now))
-            m=ms[0]; ticker=m["ticker"]; b=book(ticker)
-            close=val(m,"close_time_ts","close_ts",default=now+900) or now+900; left=max(0,int(close-now))
+            now=time.time(); ms.sort(key=lambda m:abs(ts(m,now)-now))
+            m=ms[0]; ticker=m["ticker"]
+            # If the prior window closed, ask the public market endpoint for its final result.
+            if w.pos and w.pos["ticker"] != ticker:
+                try:
+                    old=get(KALSHI+"/markets/"+w.pos["ticker"]).get("market",{})
+                    result=str(old.get("result","")).lower()
+                    if result in ("yes","no"):
+                        print(w.settle(result))
+                except Exception as settle_error:
+                    print("Prior market not settled/available yet:",str(settle_error))
+            b=book(ticker)
+            close=ts(m,now); left=max(0,int(close-now))
             action,conf,reason=decide(list(prices),b,left)
             print("\n"+datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")+" | "+str(m.get("title",ticker)))
             print("Market:",ticker,"| remaining %02d:%02d"%(left//60,left%60),"| BTC spot reference: $%.2f"%spot)
