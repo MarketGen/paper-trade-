@@ -96,7 +96,7 @@ class PaperBacktester:
 
     def _execute(self, candle: Candle):
         order, self.pending = self.pending, None
-        if not order or self.halted:
+        if not order or (self.halted and order["side"] == "BUY"):
             return
         side, reason = order["side"], order["reason"]
         raw_price = candle.open
