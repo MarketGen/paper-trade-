@@ -25,3 +25,10 @@ To make a public web link, enable GitHub Pages in the repository settings and ch
 - Delayed fills and costs are simplified; market depth, queue priority, outages, taxes, and realistic order-book liquidity are not modeled.
 - Browser refreshes reset the session; this version does not promise persistent account storage.
 - Use real historical candles and out-of-sample tests before interpreting any results. This is educational software, not financial advice.
+
+
+## Live Kalshi-style 15-minute simulator (paper-only)
+
+Run `python kalshi_live.py` to poll public Kalshi KXBTC15M market quotes and a public BTC spot reference. It starts with $10 virtual cash and prints UP / DOWN / NO TRADE decisions. Use `python kalshi_live.py --once` for a single update. It does not connect to an account or submit orders.
+
+This is a transparent momentum heuristic, not a trained or validated AI. BTC spot is only a reference; Kalshi contract settlement follows its own stated index and averaging rules. Fees are estimates, and true queue position / partial fills are not represented. Keep the system paper-only.
