@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DESK PRO — Paper Trading Lab</title>
+<meta name="description" content="Browser-based autonomous paper trading simulator. No broker connection or real-money orders.">
+<style>
+:root{color-scheme:dark;--bg:#090d17;--panel:#111827;--panel2:#151f30;--line:#253248;--muted:#92a2b9;--text:#eef4ff;--green:#38d996;--red:#ff647c;--blue:#79aaff;--gold:#ffd479}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#15233a 0,#090d17 52%);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:1180px;margin:auto;padding:22px 16px 48px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}.brand{display:flex;align-items:center;gap:12px}.logo{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#78aaff,#9276ff);color:#07111f;font-weight:950;font-size:17px}.eyebrow{font-size:11px;letter-spacing:.18em;color:var(--blue);font-weight:800}.title{font-size:25px;font-weight:850;letter-spacing:-.04em;margin:1px 0}.sub{color:var(--muted);font-size:12px}.status{border:1px solid #24664f;background:#0d2a23;color:var(--green);border-radius:999px;padding:7px 11px;font-weight:800;font-size:11px;letter-spacing:.06em}
+.banner{padding:12px 14px;border:1px solid #5c4b25;background:#2a2111;color:#ffe1a1;border-radius:12px;margin-bottom:16px;font-size:12px}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.card{background:linear-gradient(145deg,#131d2c,#101725);border:1px solid var(--line);border-radius:15px;padding:15px;min-width:0}.label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:750}.value{font-size:clamp(20px,3vw,28px);font-weight:850;letter-spacing:-.04em;margin-top:5px;overflow-wrap:anywhere}.positive{color:var(--green)}.negative{color:var(--red)}.muted{color:var(--muted)}
+.layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(270px,.9fr);gap:14px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0}.panelhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}.panelhead h2{font-size:14px;margin:0}.pill{font-size:10px;font-weight:800;border:1px solid var(--line);padding:5px 8px;border-radius:999px;color:var(--muted)}canvas{display:block;width:100%;height:260px;background:#0b111c;border:1px solid #1d2a3d;border-radius:11px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.btn{appearance:none;border:1px solid #33435c;border-radius:10px;padding:10px 13px;background:#1b2940;color:var(--text);font-weight:800;cursor:pointer}.btn.primary{background:var(--blue);border-color:var(--blue);color:#081323}.btn.danger{color:#ffb6c0}.btn:disabled{opacity:.45;cursor:not-allowed}
+.signal{padding:13px;border-radius:12px;background:#0b121f;border:1px solid var(--line);margin-bottom:12px}.signalbig{font-size:23px;font-weight:900;letter-spacing:-.03em}.signal small{display:block;color:var(--muted);margin-top:4px}.kv{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #202c3f}.kv:last-child{border:0}.kv span:first-child{color:var(--muted)}.kv strong{text-align:right;overflow-wrap:anywhere}
+.tablewrap{overflow:auto;max-height:300px}table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #263246}th{position:sticky;top:0;background:#131d2c;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+.bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}.log{max-height:220px;overflow:auto}.logrow{padding:9px 0;border-bottom:1px solid #202c3f;display:grid;grid-template-columns:62px 64px 1fr;gap:8px;font-size:12px}.logrow:last-child{border:0}.tag{font-size:10px;font-weight:900}.settings{display:grid;grid-template-columns:1fr 1fr;gap:10px}.setting label{display:block;color:var(--muted);font-size:11px;margin-bottom:5px}.setting input,.setting select{width:100%;border:1px solid #33435c;border-radius:9px;padding:9px;background:#0b121f;color:var(--text)}
+footer{margin-top:18px;color:#8191a9;font-size:11px;text-align:center}
+@media(max-width:760px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.layout,.bottom{grid-template-columns:1fr}.value{font-size:24px}canvas{height:220px}}
+</style>
+</head>
+<body>
+<main>
+<header class="top">
+ <div class="brand"><div class="logo">DP</div><div><div class="eyebrow">AUTONOMOUS SIMULATION</div><div class="title">DESK PRO <span style="color:var(--blue)">/ PAPER LAB</span></div><div class="sub">Browser-based • No Python install • No live orders</div></div></div>
+ <div class="status" id="runStatus">● PAPER MODE READY</div>
+</header>
+<div class="banner"><strong>Paper trading only.</strong> This lab uses generated demo prices by default. It does not connect to a broker, place real trades, or guarantee profitability. Demo results are not market predictions.</div>
+<section class="metrics">
+ <div class="card"><div class="label">Virtual equity</div><div class="value" id="equity">$10.00</div><div class="sub" id="equityChange">Starting balance</div></div>
+ <div class="card"><div class="label">Net return</div><div class="value" id="return">0.00%</div><div class="sub">After simulated fees</div></div>
+ <div class="card"><div class="label">Max drawdown</div><div class="value" id="drawdown">0.00%</div><div class="sub">Peak-to-trough equity</div></div>
+ <div class="card"><div class="label">Closed exits</div><div class="value" id="trades">0</div><div class="sub" id="winrate">Win rate: —</div></div>
+</section>
+<div class="layout">
+ <section class="panel">
+  <div class="panelhead"><h2>Price action & strategy levels</h2><span class="pill" id="barCount">0 bars</span></div>
+  <canvas id="chart" width="900" height="300" aria-label="Simulated price chart"></canvas>
+  <div class="controls">
+   <button class="btn primary" id="startBtn">▶ Start auto</button><button class="btn" id="stepBtn">＋ Run 1 bar</button><button class="btn" id="pauseBtn">Ⅱ Pause</button><button class="btn danger" id="resetBtn">↺ Reset $10</button>
+  </div>
+  <div class="sub">Strategy: EMA trend + RSI filter + breakout confirmation. Orders fill on a later bar open with simulated slippage.</div>
+ </section>
+ <aside class="panel">
+  <div class="panelhead"><h2>Autonomous decision</h2><span class="pill">RULE-BASED AI</span></div>
+  <div class="signal"><div class="label">Latest action</div><div class="signalbig" id="signal">HOLD</div><small id="reason">Waiting for sufficient candle history.</small></div>
+  <div class="kv"><span>Demo price</span><strong id="price">$100.00</strong></div>
+  <div class="kv"><span>Virtual cash</span><strong id="cash">$10.00</strong></div>
+  <div class="kv"><span>Position</span><strong id="position">$0.00</strong></div>
+  <div class="kv"><span>Open units</span><strong id="units">0.000000</strong></div>
+  <div class="kv"><span>Avg. entry</span><strong id="entry">—</strong></div>
+  <div class="kv"><span>Pending order</span><strong id="pending">None</strong></div>
+  <div class="kv"><span>Strategy state</span><strong id="strategyState">Learning bars</strong></div>
+  <div class="kv"><span>Risk circuit breaker</span><strong id="breaker">Armed</strong></div>
+ </aside>
+</div>
+<div class="bottom">
+ <section class="panel">
+  <div class="panelhead"><h2>Risk & execution settings</h2><span class="pill">PAPER ACCOUNT</span></div>
+  <div class="settings">
+   <div class="setting"><label for="fee">Fee per side (%)</label><input id="fee" type="number" min="0" max="2" step=".01" value=".10"></div>
+   <div class="setting"><label for="slippage">Slippage per fill (%)</label><input id="slippage" type="number" min="0" max="2" step=".01" value=".05"></div>
+   <div class="setting"><label for="risk">Risk budget per trade (%)</label><input id="risk" type="number" min=".1" max="5" step=".1" value="1"></div>
+   <div class="setting"><label for="maxpos">Max equity allocation (%)</label><input id="maxpos" type="number" min="1" max="100" step="1" value="25"></div>
+   <div class="setting"><label for="stop">Stop loss (%)</label><input id="stop" type="number" min=".2" max="20" step=".1" value="2"></div>
+   <div class="setting"><label for="target">Take profit (%)</label><input id="target" type="number" min=".2" max="50" step=".1" value="3"></div>
+   <div class="setting"><label for="drawLimit">Drawdown halt (%)</label><input id="drawLimit" type="number" min="1" max="80" step="1" value="20"></div>
+   <div class="setting"><label for="speed">Auto speed</label><select id="speed"><option value="1200">Slow</option><option value="600" selected>Normal</option><option value="250">Fast</option></select></div>
+  </div>
+  <div class="controls"><button class="btn" id="applyBtn">Apply settings</button><span class="sub" id="settingsNote">Settings affect future orders.</span></div>
+ </section>
+ <section class="panel">
+  <div class="panelhead"><h2>Execution journal</h2><span class="pill" id="journalCount">0 events</span></div>
+  <div class="log" id="journal"><div class="sub">Trade and signal events appear here.</div></div>
+ </section>
+</div>
+<section class="panel" style="margin-top:14px">
+ <div class="panelhead"><h2>Trade history</h2><span class="pill">SIMULATED FILLS</span></div>
+ <div class="tablewrap"><table><thead><tr><th>Bar</th><th>Side</th><th>Units</th><th>Fill price</th><th>Fee</th><th>Reason</th><th>Realized P/L</th></tr></thead><tbody id="tradeRows"><tr><td colspan="7" class="muted">No fills yet.</td></tr></tbody></table></div>
+</section>
+<footer>DESK PRO • Offline demo mode • No brokerage API • No real-money functionality • Results are hypothetical</footer>
+</main>
+<script>
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const INITIAL_CASH = 10;
+let bars=[], trades=[], events=[], cash=INITIAL_CASH, units=0, avgEntry=0, entryFees=0;
+let pending=null, running=false, timer=null, peak=INITIAL_CASH, maxDD=0, halted=false;
+let realized=0, wins=0, losses=0, partialTaken=false, barNo=0, lastDecision="HOLD", lastReason="Waiting for sufficient candle history.";
+let cfg={fee:.001,slippage:.0005,risk:.01,maxpos:.25,stop:.02,target:.03,drawLimit:.20,speed:600,delay:1,partial:.5};
+const fmt=(v,n=2)=>Number(v).toLocaleString("en-US",{minimumFractionDigits:n,maximumFractionDigits:n});
+const money=v=>"$"+fmt(v);
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function log(type,msg){events.unshift({bar:barNo,type,msg});events=events.slice(0,80);renderJournal();}
+function seededPrice(i){
+ const trend=0.0008*Math.sin(i/7)+0.00035*Math.cos(i/3.5);
+ const noise=(Math.random()-.5)*.018;
+ const prev=bars.length?bars[bars.length-1].close:100;
+ const close=Math.max(.05,prev*(1+trend+noise));
+ const open=prev, wiggle=Math.random()*.006;
+ return {i,open,high:Math.max(open,close)*(1+wiggle),low:Math.min(open,close)*(1-wiggle),close};
+}
+function sma(arr,n){if(arr.length<n)return null;return arr.slice(-n).reduce((s,b)=>s+b.close,0)/n;}
+function ema(arr,n){if(arr.length<n)return null;const vals=arr.map(b=>b.close);let e=vals.slice(0,n).reduce((s,x)=>s+x,0)/n;for(let i=n;i<vals.length;i++)e=vals[i]*(2/(n+1))+e*(1-2/(n+1));return e;}
+function rsi(arr,n=14){if(arr.length<n+1)return null;let up=0,down=0;for(let i=arr.length-n;i<arr.length;i++){const d=arr[i].close-arr[i-1].close;if(d>0)up+=d;else down-=d;}if(down===0)return 100;const rs=up/down;return 100-100/(1+rs);}
+function equity(price){return cash+units*price;}
+function queue(side,reason,fraction=1){if(!pending&&!halted){pending={side,reason,fraction,executeAt:barNo+cfg.delay};log("ORDER",side+" queued — "+reason);}}
+function execute(bar){
+ if(!pending||bar.i<pending.executeAt)return;
+ const o=pending;pending=null;
+ if(halted&&o.side==="BUY")return;
+ const raw=bar.open, price=raw*(o.side==="BUY"?1+cfg.slippage:1-cfg.slippage);
+ if(o.side==="BUY"){
+  const eq=equity(price), cap=Math.min(cash,eq*cfg.maxpos), riskBudget=eq*cfg.risk;
+  const riskUnits=riskBudget/(price*cfg.stop);
+  let qty=Math.min(cap/(price*(1+cfg.fee)),riskUnits);
+  if(qty*price<.05){log("SKIP","Order below $0.05 minimum size.");return;}
+  qty=Math.min(qty,cash/(price*(1+cfg.fee)));
+  const notional=qty*price,fee=notional*cfg.fee;
+  avgEntry=units?((avgEntry*units+price*qty)/(units+qty)):price;
+  units+=qty;cash-=notional+fee;entryFees+=fee;partialTaken=false;
+  trades.unshift({bar:bar.i,side:"BUY",qty,price,fee,reason:o.reason,pnl:null});
+  log("BUY",fmt(qty,6)+" units at "+money(price)+" incl. simulated costs.");
+ }else if(o.side==="SELL"&&units>0){
+  const qty=units*clamp(o.fraction,0,1),notional=qty*price,fee=notional*cfg.fee;
+  const allocated=entryFees*(qty/units),pnl=(price-avgEntry)*qty-fee-allocated;
+  cash+=notional-fee;units-=qty;entryFees-=allocated;realized+=pnl;
+  if(pnl>0)wins++;else if(pnl<0)losses++;
+  trades.unshift({bar:bar.i,side:"SELL",qty,price,fee,reason:o.reason,pnl});
+  log("SELL",fmt(qty,6)+" units at "+money(price)+" • P/L "+(pnl>=0?"+":"")+money(pnl));
+  if(units<1e-10){units=0;avgEntry=0;entryFees=0;partialTaken=false;}
+ }
+ trades=trades.slice(0,150);
+}
+function decision(bar){
+ const closes=bars.map(b=>b.close), fast=ema(bars,5), slow=ema(bars,13), strength=rsi(bars,14);
+ let action="HOLD", reason="Waiting for trend confirmation.";
+ if(halted){action="HALT";reason="Drawdown circuit breaker blocks new entries.";}
+ else if(units>0){
+  if(bar.close<=avgEntry*(1-cfg.stop)){action="SELL";reason="Stop-loss threshold reached.";queue("SELL","stop_loss");}
+  else if(!partialTaken&&bar.close>=avgEntry*(1+cfg.target)){action="SELL";reason="Take-profit threshold: request partial exit.";queue("SELL","partial_take_profit",cfg.partial);partialTaken=true;}
+  else if(fast&&slow&&fast<slow){action="SELL";reason="Fast EMA crossed below slow EMA.";queue("SELL","trend_reversal");}
+  else {action="HOLD";reason="Position open; risk exits remain active.";}
+ }else if(fast&&slow&&strength!==null&&fast>slow&&strength>45&&strength<72&&bar.close>Math.max(...closes.slice(-5,-1))){
+  action="BUY";reason="Uptrend + RSI filter + short breakout confirmed.";queue("BUY","trend_rsi_breakout");
+ }else if(fast&&slow&&strength!==null){
+  reason=fast<=slow?"Trend filter is not bullish.":strength>=72?"RSI filter avoids chasing an overheated move.":strength<=45?"Momentum filter is not strong enough.":"Waiting for breakout confirmation.";
+ }
+ lastDecision=action;lastReason=reason;
+}
+function processBar(){
+ barNo++;const b=seededPrice(barNo);bars.push(b);if(bars.length>240)bars.shift();
+ execute(b);
+ let eq=equity(b.close);peak=Math.max(peak,eq);const dd=peak>0?(peak-eq)/peak:0;maxDD=Math.max(maxDD,dd);
+ if(dd>=cfg.drawLimit&&!halted){halted=true;pending=null;log("RISK","Drawdown limit reached; new entries halted.");if(units>0){halted=false;queue("SELL","drawdown_circuit_breaker");halted=true;}}
+ decision(b);
+ render();drawChart();
+}
+function stopAuto(){running=false;if(timer)clearTimeout(timer);timer=null;$("startBtn").disabled=false;$("runStatus").textContent="● PAPER MODE PAUSED";$("runStatus").style.color="var(--gold)";$("runStatus").style.borderColor="#5c4b25";}
+function runLoop(){if(!running)return;processBar();timer=setTimeout(runLoop,cfg.speed);}
+function start(){if(halted){log("RISK","Reset the account to clear the drawdown halt.");return;}if(running)return;running=true;$("startBtn").disabled=true;$("runStatus").textContent="● AUTO SIMULATING";$("runStatus").style.color="var(--green)";$("runStatus").style.borderColor="#24664f";runLoop();}
+function reset(){stopAuto();bars=[];trades=[];events=[];cash=INITIAL_CASH;units=0;avgEntry=0;entryFees=0;pending=null;peak=INITIAL_CASH;maxDD=0;halted=false;realized=0;wins=0;losses=0;partialTaken=false;barNo=0;lastDecision="HOLD";lastReason="Reset. Generate bars to start strategy.";for(let i=0;i<30;i++){barNo=i;bars.push(seededPrice(i));}barNo=29;log("SYSTEM","Fresh $10 virtual account initialized.");decision(bars[bars.length-1]);render();drawChart();$("runStatus").textContent="● PAPER MODE READY";$("runStatus").style.color="var(--green)";$("runStatus").style.borderColor="#24664f";}
+function render(){
+ const b=bars[bars.length-1],price=b?b.close:100,eq=equity(price),pnl=eq-INITIAL_CASH,ret=pnl/INITIAL_CASH*100,exits=trades.filter(t=>t.side==="SELL");
+ $("equity").textContent=money(eq);$("equity").className="value "+(pnl>=0?"positive":"negative");
+ $("equityChange").textContent=(pnl>=0?"+":"")+money(pnl)+" vs starting balance";
+ $("return").textContent=(ret>=0?"+":"")+fmt(ret)+"%";$("return").className="value "+(ret>=0?"positive":"negative");
+ $("drawdown").textContent=fmt(maxDD*100)+"%";$("drawdown").className="value "+(maxDD*100>=cfg.drawLimit*100*.75?"negative":"");
+ $("trades").textContent=exits.length;$("winrate").textContent="Win rate: "+(wins+losses?fmt(wins/(wins+losses)*100)+"%":"—");
+ $("price").textContent=money(price);$("cash").textContent=money(cash);$("position").textContent=money(units*price);$("units").textContent=fmt(units,6);$("entry").textContent=avgEntry?money(avgEntry):"—";
+ $("pending").textContent=pending?pending.side+" @ bar "+pending.executeAt:"None";$("strategyState").textContent=bars.length<14?"Building indicators":halted?"Halted":units>0?"Managing position":"Scanning entries";$("breaker").textContent=halted?"TRIPPED":"Armed";$("breaker").className=halted?"negative":"positive";
+ $("signal").textContent=lastDecision;$("signal").className="signalbig "+(lastDecision==="BUY"?"positive":lastDecision==="SELL"?"negative":"");$("reason").textContent=lastReason;$("barCount").textContent=bars.length+" bars";$("journalCount").textContent=events.length+" events";
+ $("tradeRows").innerHTML=trades.length?trades.slice(0,40).map(t=>'<tr><td>'+t.bar+'</td><td class="'+(t.side==="BUY"?"positive":"negative")+'">'+t.side+'</td><td>'+fmt(t.qty,6)+'</td><td>'+money(t.price)+'</td><td>'+money(t.fee)+'</td><td>'+t.reason+'</td><td class="'+(t.pnl===null?"":t.pnl>=0?"positive":"negative")+'">'+(t.pnl===null?"—":(t.pnl>=0?"+":"")+money(t.pnl))+'</td></tr>').join(""):'<tr><td colspan="7" class="muted">No fills yet.</td></tr>';
+}
+function renderJournal(){$("journal").innerHTML=events.length?events.map(e=>'<div class="logrow"><span class="muted">BAR '+e.bar+'</span><span class="tag '+(e.type==="BUY"?"positive":e.type==="SELL"||e.type==="RISK"?"negative":"")+'">'+e.type+'</span><span>'+e.msg+'</span></div>').join(""):'<div class="sub">Trade and signal events appear here.</div>';}
+function drawChart(){
+ const c=$("chart"),ctx=c.getContext("2d"),w=c.width,h=c.height;ctx.clearRect(0,0,w,h);
+ ctx.strokeStyle="#1d2a3d";ctx.lineWidth=1;for(let i=1;i<5;i++){let y=i*h/5;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+ if(!bars.length)return;const data=bars.slice(-70),lo=Math.min(...data.map(b=>b.low)),hi=Math.max(...data.map(b=>b.high)),pad=(hi-lo)*.08||1,min=lo-pad,max=hi+pad;
+ const y=v=>h-((v-min)/(max-min))*h,step=w/data.length;
+ data.forEach((b,i)=>{const x=i*step+step/2;ctx.strokeStyle=b.close>=b.open?"#38d996":"#ff647c";ctx.fillStyle=ctx.strokeStyle;ctx.beginPath();ctx.moveTo(x,y(b.high));ctx.lineTo(x,y(b.low));ctx.stroke();const top=y(Math.max(b.open,b.close)),bot=y(Math.min(b.open,b.close));ctx.fillRect(x-step*.27,top,step*.54,Math.max(2,bot-top));});
+ const price=data[data.length-1].close;ctx.setLineDash([5,4]);ctx.strokeStyle="#79aaff";ctx.beginPath();ctx.moveTo(0,y(price));ctx.lineTo(w,y(price));ctx.stroke();ctx.setLineDash([]);
+ ctx.fillStyle="#dce8ff";ctx.font="bold 12px system-ui";ctx.fillText("$"+price.toFixed(3),8,Math.max(14,y(price)-7));
+}
+function applySettings(){
+ const read=(id,min,max,scale)=>clamp(Number($(id).value),min,max)/scale;
+ cfg.fee=read("fee",0,2,100);cfg.slippage=read("slippage",0,2,100);cfg.risk=read("risk",.1,5,100);cfg.maxpos=read("maxpos",1,100,100);cfg.stop=read("stop",.2,20,100);cfg.target=read("target",.2,50,100);cfg.drawLimit=read("drawLimit",1,80,100);cfg.speed=Number($("speed").value)||600;
+ $("settingsNote").textContent="Applied to future orders.";log("SYSTEM","Risk settings updated.");render();
+}
+$("startBtn").addEventListener("click",start);$("pauseBtn").addEventListener("click",stopAuto);$("stepBtn").addEventListener("click",()=>{if(!running)processBar();});$("resetBtn").addEventListener("click",reset);$("applyBtn").addEventListener("click",applySettings);
+reset();
+})();
+</script>
+</body>
+</html>
