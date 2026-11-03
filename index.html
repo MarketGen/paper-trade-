@@ -26,7 +26,7 @@ footer{margin-top:18px;color:#8191a9;font-size:11px;text-align:center}
  <div class="brand"><div class="logo">DP</div><div><div class="eyebrow">AUTONOMOUS SIMULATION</div><div class="title">DESK PRO <span style="color:var(--blue)">/ PAPER LAB</span></div><div class="sub">Browser-based • No Python install • No live orders</div></div></div>
  <div class="status" id="runStatus">● PAPER MODE READY</div>
 </header>
-<div class="banner"><strong>Paper trading only.</strong> This lab uses generated demo prices by default. It does not connect to a broker, place real trades, or guarantee profitability. Demo results are not market predictions.</div>
+<div class="banner"><strong>Paper trading only.</strong> Live BTC spot data can drive the chart and rule-based paper decisions. Kalshi 15-minute quotes are shown as market context when available. No real orders are submitted.</div>
 <section class="metrics">
  <div class="card"><div class="label">Virtual equity</div><div class="value" id="equity">$10.00</div><div class="sub" id="equityChange">Starting balance</div></div>
  <div class="card"><div class="label">Net return</div><div class="value" id="return">0.00%</div><div class="sub">After simulated fees</div></div>
@@ -38,6 +38,7 @@ footer{margin-top:18px;color:#8191a9;font-size:11px;text-align:center}
   <div class="panelhead"><h2>Price action & strategy levels</h2><span class="pill" id="barCount">0 bars</span></div>
   <canvas id="chart" width="900" height="300" aria-label="Simulated price chart"></canvas>
   <div class="controls">
+   <label class="sub" for="marketFeed" style="align-self:center">Market feed</label><select id="marketFeed" class="btn" style="max-width:230px"><option value="demo">Demo prices</option><option value="live">Live BTC + Kalshi context</option></select>
    <button class="btn primary" id="startBtn">▶ Start auto</button><button class="btn" id="stepBtn">＋ Run 1 bar</button><button class="btn" id="pauseBtn">Ⅱ Pause</button><button class="btn danger" id="resetBtn">↺ Reset $10</button>
   </div>
   <div class="sub">Strategy: EMA trend + RSI filter + breakout confirmation. Orders fill on a later bar open with simulated slippage.</div>
@@ -45,7 +46,12 @@ footer{margin-top:18px;color:#8191a9;font-size:11px;text-align:center}
  <aside class="panel">
   <div class="panelhead"><h2>Autonomous decision</h2><span class="pill">RULE-BASED AI</span></div>
   <div class="signal"><div class="label">Latest action</div><div class="signalbig" id="signal">HOLD</div><small id="reason">Waiting for sufficient candle history.</small></div>
-  <div class="kv"><span>Demo price</span><strong id="price">$100.00</strong></div>
+  <div class="kv"><span>Price source</span><strong id="priceSource">Demo candles</strong></div>
+  <div class="kv"><span>Latest price</span><strong id="price">$100.00</strong></div>
+  <div class="kv"><span>Live data status</span><strong id="liveStatus">Demo mode</strong></div>
+  <div class="kv"><span>Kalshi 15m market</span><strong id="kalshiTicker">Not connected</strong></div>
+  <div class="kv"><span>Kalshi UP bid / ask</span><strong id="kalshiQuotes">—</strong></div>
+  <div class="kv"><span>Kalshi time remaining</span><strong id="kalshiTime">—</strong></div>
   <div class="kv"><span>Virtual cash</span><strong id="cash">$10.00</strong></div>
   <div class="kv"><span>Position</span><strong id="position">$0.00</strong></div>
   <div class="kv"><span>Open units</span><strong id="units">0.000000</strong></div>
@@ -90,11 +96,13 @@ let bars=[], trades=[], events=[], cash=INITIAL_CASH, units=0, avgEntry=0, entry
 let pending=null, running=false, timer=null, peak=INITIAL_CASH, maxDD=0, halted=false;
 let realized=0, wins=0, losses=0, partialTaken=false, barNo=0, lastDecision="HOLD", lastReason="Waiting for sufficient candle history.";
 let cfg={fee:.001,slippage:.0005,risk:.01,maxpos:.25,stop:.02,target:.03,drawLimit:.20,speed:600,delay:1,partial:.5};
+let marketMode="demo", liveSpot=null, lastLiveAt=null, liveError="", kalshiSnapshot=null;
 const fmt=(v,n=2)=>Number(v).toLocaleString("en-US",{minimumFractionDigits:n,maximumFractionDigits:n});
 const money=v=>"$"+fmt(v);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function log(type,msg){events.unshift({bar:barNo,type,msg});events=events.slice(0,80);renderJournal();}
 function seededPrice(i){
+ if(marketMode==="live" && Number.isFinite(liveSpot)){const prev=bars.length?bars[bars.length-1].close:liveSpot;const close=liveSpot;const open=prev;const wiggle=Math.max(Math.abs(close-open)*.15,close*.00008);return {i,open,high:Math.max(open,close)+wiggle,low:Math.min(open,close)-wiggle,close};}
  const trend=0.0008*Math.sin(i/7)+0.00035*Math.cos(i/3.5);
  const noise=(Math.random()-.5)*.018;
  const prev=bars.length?bars[bars.length-1].close:100;
@@ -159,7 +167,9 @@ function processBar(){
  render();drawChart();
 }
 function stopAuto(){running=false;if(timer)clearTimeout(timer);timer=null;$("startBtn").disabled=false;$("runStatus").textContent="● PAPER MODE PAUSED";$("runStatus").style.color="var(--gold)";$("runStatus").style.borderColor="#5c4b25";}
-function runLoop(){if(!running)return;processBar();timer=setTimeout(runLoop,cfg.speed);}
+async function refreshLiveMarket(){ if(marketMode!=="live")return; try{const r=await fetch("https://data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT",{cache:"no-store"});if(!r.ok)throw new Error("BTC HTTP "+r.status);const d=await r.json();liveSpot=Number(d.price);if(!Number.isFinite(liveSpot))throw new Error("Invalid BTC price");lastLiveAt=Date.now();liveError="";try{const mr=await fetch("https://external-api.kalshi.com/trade-api/v2/markets?series_ticker=KXBTC15M&status=open&limit=20",{cache:"no-store"});if(!mr.ok)throw new Error("Kalshi markets HTTP "+mr.status);const md=await mr.json(),list=md.markets||[];if(list.length){const now=Date.now()/1000,close=m=>{const n=Number(m.close_time_ts||m.close_ts);const p=Date.parse(m.close_time||m.expiration_time||"");return n>0?n:Number.isFinite(p)?p/1000:now+900;};list.sort((a,b)=>Math.abs(close(a)-now)-Math.abs(close(b)-now));const m=list[0],br=await fetch("https://external-api.kalshi.com/trade-api/v2/markets/"+encodeURIComponent(m.ticker)+"/orderbook",{cache:"no-store"});if(!br.ok)throw new Error("Kalshi book HTTP "+br.status);const bd=await br.json(),book=bd.orderbook_fp||bd.orderbook||bd,yes=book.yes||book.yes_dollars||[],no=book.no||book.no_dollars||[],px=a=>a.map(x=>Number(x[0])<=1?Number(x[0])*100:Number(x[0])).filter(Number.isFinite),yb=yes.length?Math.max(...px(yes)):null,nb=no.length?Math.max(...px(no)):null;kalshiSnapshot={ticker:m.ticker,yesBid:yb,yesAsk:nb===null?null:100-nb,seconds:Math.max(0,Math.floor(close(m)-now))};}else kalshiSnapshot=null;}catch(e){kalshiSnapshot=null;liveError="BTC live; Kalshi unavailable: "+e.message;}}catch(e){liveError=e.message||"Live data unavailable";}renderLiveStatus();}
+function renderLiveStatus(){$("priceSource").textContent=marketMode==="live"?"Live BTC spot":"Demo candles";$("liveStatus").textContent=marketMode!=="live"?"Demo mode":liveSpot===null?"Connecting…":liveError||("Live • "+Math.max(0,Math.round((Date.now()-lastLiveAt)/1000))+"s ago");$("kalshiTicker").textContent=kalshiSnapshot?kalshiSnapshot.ticker:"Unavailable";$("kalshiQuotes").textContent=kalshiSnapshot?(kalshiSnapshot.yesBid===null?"—":fmt(kalshiSnapshot.yesBid,1)+"¢")+" / "+(kalshiSnapshot.yesAsk===null?"—":fmt(kalshiSnapshot.yesAsk,1)+"¢"):"—";$("kalshiTime").textContent=kalshiSnapshot?Math.floor(kalshiSnapshot.seconds/60)+"m "+(kalshiSnapshot.seconds%60)+"s":"—";}
+async function runLoop(){if(!running)return;await refreshLiveMarket();if(!running)return;processBar();timer=setTimeout(runLoop,cfg.speed);}
 function start(){if(halted){log("RISK","Reset the account to clear the drawdown halt.");return;}if(running)return;running=true;$("startBtn").disabled=true;$("runStatus").textContent="● AUTO SIMULATING";$("runStatus").style.color="var(--green)";$("runStatus").style.borderColor="#24664f";runLoop();}
 function reset(){stopAuto();bars=[];trades=[];events=[];cash=INITIAL_CASH;units=0;avgEntry=0;entryFees=0;pending=null;peak=INITIAL_CASH;maxDD=0;halted=false;realized=0;wins=0;losses=0;partialTaken=false;barNo=0;lastDecision="HOLD";lastReason="Reset. Generate bars to start strategy.";for(let i=0;i<30;i++){barNo=i;bars.push(seededPrice(i));}barNo=29;log("SYSTEM","Fresh $10 virtual account initialized.");decision(bars[bars.length-1]);render();drawChart();$("runStatus").textContent="● PAPER MODE READY";$("runStatus").style.color="var(--green)";$("runStatus").style.borderColor="#24664f";}
 function render(){
@@ -169,7 +179,7 @@ function render(){
  $("return").textContent=(ret>=0?"+":"")+fmt(ret)+"%";$("return").className="value "+(ret>=0?"positive":"negative");
  $("drawdown").textContent=fmt(maxDD*100)+"%";$("drawdown").className="value "+(maxDD*100>=cfg.drawLimit*100*.75?"negative":"");
  $("trades").textContent=exits.length;$("winrate").textContent="Win rate: "+(wins+losses?fmt(wins/(wins+losses)*100)+"%":"—");
- $("price").textContent=money(price);$("cash").textContent=money(cash);$("position").textContent=money(units*price);$("units").textContent=fmt(units,6);$("entry").textContent=avgEntry?money(avgEntry):"—";
+ $("price").textContent=money(price);renderLiveStatus();$("cash").textContent=money(cash);$("position").textContent=money(units*price);$("units").textContent=fmt(units,6);$("entry").textContent=avgEntry?money(avgEntry):"—";
  $("pending").textContent=pending?pending.side+" @ bar "+pending.executeAt:"None";$("strategyState").textContent=bars.length<14?"Building indicators":halted?"Halted":units>0?"Managing position":"Scanning entries";$("breaker").textContent=halted?"TRIPPED":"Armed";$("breaker").className=halted?"negative":"positive";
  $("signal").textContent=lastDecision;$("signal").className="signalbig "+(lastDecision==="BUY"?"positive":lastDecision==="SELL"?"negative":"");$("reason").textContent=lastReason;$("barCount").textContent=bars.length+" bars";$("journalCount").textContent=events.length+" events";
  $("tradeRows").innerHTML=trades.length?trades.slice(0,40).map(t=>'<tr><td>'+t.bar+'</td><td class="'+(t.side==="BUY"?"positive":"negative")+'">'+t.side+'</td><td>'+fmt(t.qty,6)+'</td><td>'+money(t.price)+'</td><td>'+money(t.fee)+'</td><td>'+t.reason+'</td><td class="'+(t.pnl===null?"":t.pnl>=0?"positive":"negative")+'">'+(t.pnl===null?"—":(t.pnl>=0?"+":"")+money(t.pnl))+'</td></tr>').join(""):'<tr><td colspan="7" class="muted">No fills yet.</td></tr>';
@@ -189,7 +199,8 @@ function applySettings(){
  cfg.fee=read("fee",0,2,100);cfg.slippage=read("slippage",0,2,100);cfg.risk=read("risk",.1,5,100);cfg.maxpos=read("maxpos",1,100,100);cfg.stop=read("stop",.2,20,100);cfg.target=read("target",.2,50,100);cfg.drawLimit=read("drawLimit",1,80,100);cfg.speed=Number($("speed").value)||600;
  $("settingsNote").textContent="Applied to future orders.";log("SYSTEM","Risk settings updated.");render();
 }
-$("startBtn").addEventListener("click",start);$("pauseBtn").addEventListener("click",stopAuto);$("stepBtn").addEventListener("click",()=>{if(!running)processBar();});$("resetBtn").addEventListener("click",reset);$("applyBtn").addEventListener("click",applySettings);
+$("startBtn").addEventListener("click",start);$("pauseBtn").addEventListener("click",stopAuto);$("stepBtn").addEventListener("click",async()=>{if(!running){await refreshLiveMarket();processBar();}});
+$("marketFeed").addEventListener("change",async e=>{marketMode=e.target.value;liveSpot=null;kalshiSnapshot=null;liveError="";renderLiveStatus();if(marketMode==="live"){await refreshLiveMarket();if(liveSpot!==null){bars=[];trades=[];events=[];cash=INITIAL_CASH;units=0;avgEntry=0;entryFees=0;pending=null;peak=INITIAL_CASH;maxDD=0;halted=false;realized=0;wins=0;losses=0;partialTaken=false;barNo=0;lastDecision="HOLD";lastReason="Collecting live samples.";for(let i=0;i<15;i++)bars.push({i,open:liveSpot,high:liveSpot,low:liveSpot,close:liveSpot});barNo=14;log("SYSTEM","Live BTC selected; $10 virtual account reset.");render();drawChart();}}else reset();});$("resetBtn").addEventListener("click",reset);$("applyBtn").addEventListener("click",applySettings);
 reset();
 })();
 </script>
