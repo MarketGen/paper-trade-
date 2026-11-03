@@ -15,7 +15,7 @@ main{max-width:1180px;margin:auto;padding:22px 16px 48px}.top{display:flex;align
 .controls{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.btn{appearance:none;border:1px solid #33435c;border-radius:10px;padding:10px 13px;background:#1b2940;color:var(--text);font-weight:800;cursor:pointer}.btn.primary{background:var(--blue);border-color:var(--blue);color:#081323}.btn.danger{color:#ffb6c0}.btn:disabled{opacity:.45;cursor:not-allowed}
 .signal{padding:13px;border-radius:12px;background:#0b121f;border:1px solid var(--line);margin-bottom:12px}.signalbig{font-size:23px;font-weight:900;letter-spacing:-.03em}.signal small{display:block;color:var(--muted);margin-top:4px}.kv{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #202c3f}.kv:last-child{border:0}.kv span:first-child{color:var(--muted)}.kv strong{text-align:right;overflow-wrap:anywhere}
 .tablewrap{overflow:auto;max-height:300px}table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #263246}th{position:sticky;top:0;background:#131d2c;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}
-.bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}.log{max-height:220px;overflow:auto}.logrow{padding:9px 0;border-bottom:1px solid #202c3f;display:grid;grid-template-columns:62px 64px 1fr;gap:8px;font-size:12px}.logrow:last-child{border:0}.tag{font-size:10px;font-weight:900}.settings{display:grid;grid-template-columns:1fr 1fr;gap:10px}.setting label{display:block;color:var(--muted);font-size:11px;margin-bottom:5px}.setting input,.setting select{width:100%;border:1px solid #33435c;border-radius:9px;padding:9px;background:#0b121f;color:var(--text)}
+.bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}.log{max-height:220px;overflow:auto}.logrow{padding:9px 0;border-bottom:1px solid #202c3f;display:grid;grid-template-columns:62px 64px 1fr;gap:8px;font-size:12px}.logrow:last-child{border:0}.tag{font-size:10px;font-weight:900}.settings{display:grid;grid-template-columns:1fr 1fr;gap:10px}.sourceTable{margin-top:12px}.sourceTable table{white-space:normal}.sourceTable td{font-variant-numeric:tabular-nums}.source-ok{color:var(--green)}.source-bad{color:var(--red)}.setting label{display:block;color:var(--muted);font-size:11px;margin-bottom:5px}.setting input,.setting select{width:100%;border:1px solid #33435c;border-radius:9px;padding:9px;background:#0b121f;color:var(--text)}
 footer{margin-top:18px;color:#8191a9;font-size:11px;text-align:center}
 @media(max-width:760px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.layout,.bottom{grid-template-columns:1fr}.value{font-size:24px}canvas{height:220px}}
 </style>
@@ -38,10 +38,10 @@ footer{margin-top:18px;color:#8191a9;font-size:11px;text-align:center}
   <div class="panelhead"><h2>Price action & strategy levels</h2><span class="pill" id="barCount">0 bars</span></div>
   <canvas id="chart" width="900" height="300" aria-label="Simulated price chart"></canvas>
   <div class="controls">
-   <label class="sub" for="marketFeed" style="align-self:center">Market feed</label><select id="marketFeed" class="btn" style="max-width:230px"><option value="demo">Demo prices</option><option value="live">Live BTC + Kalshi context</option></select>
+   <label class="sub" for="marketFeed" style="align-self:center">Market feed</label><select id="marketFeed" class="btn" style="max-width:190px"><option value="demo">Demo prices</option><option value="live">Multi-source live crypto</option></select><label class="sub" for="cryptoAsset" style="align-self:center">Asset</label><select id="cryptoAsset" class="btn" style="max-width:110px"><option>BTC</option><option>ETH</option><option>SOL</option><option>DOGE</option><option>LTC</option></select>
    <button class="btn primary" id="startBtn">▶ Start auto</button><button class="btn" id="stepBtn">＋ Run 1 bar</button><button class="btn" id="pauseBtn">Ⅱ Pause</button><button class="btn danger" id="resetBtn">↺ Reset $10</button>
   </div>
-  <div class="sub">Strategy: EMA trend + RSI filter + breakout confirmation. Orders fill on a later bar open with simulated slippage.</div>
+  <div class="sub">Strategy: EMA trend + RSI + breakout. Live signals use the median of available exchange prices.</div><div class="sourceTable"><div class="panelhead"><h2>Crypto price-source monitor</h2><span class="pill" id="sourceSummary">Demo mode</span></div><div class="tablewrap"><table><thead><tr><th>Source</th><th>Price</th><th>Source time (UTC)</th><th>Received (local)</th><th>Age</th><th>Status</th></tr></thead><tbody id="sourceRows"><tr><td colspan="6" class="muted">Select live crypto to poll multiple exchanges.</td></tr></tbody></table></div><div class="sub">If an exchange does not provide an event timestamp, receive time is shown instead. Exchange quotes can differ.</div></div>
  </section>
  <aside class="panel">
   <div class="panelhead"><h2>Autonomous decision</h2><span class="pill">RULE-BASED AI</span></div>
@@ -96,7 +96,7 @@ let bars=[], trades=[], events=[], cash=INITIAL_CASH, units=0, avgEntry=0, entry
 let pending=null, running=false, timer=null, peak=INITIAL_CASH, maxDD=0, halted=false;
 let realized=0, wins=0, losses=0, partialTaken=false, barNo=0, lastDecision="HOLD", lastReason="Waiting for sufficient candle history.";
 let cfg={fee:.001,slippage:.0005,risk:.01,maxpos:.25,stop:.02,target:.03,drawLimit:.20,speed:600,delay:1,partial:.5};
-let marketMode="demo", liveSpot=null, lastLiveAt=null, liveError="", kalshiSnapshot=null;
+let marketMode="demo", cryptoAsset="BTC", liveSpot=null, lastLiveAt=null, liveError="", kalshiSnapshot=null, sourceQuotes=[];
 const fmt=(v,n=2)=>Number(v).toLocaleString("en-US",{minimumFractionDigits:n,maximumFractionDigits:n});
 const money=v=>"$"+fmt(v);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
