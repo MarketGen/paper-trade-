@@ -159,7 +159,7 @@ function decision(bar){
  lastDecision=action;lastReason=reason;
 }
 function processBar(){
- barNo++;const b=seededPrice(barNo);bars.push(b);if(bars.length>240)bars.shift();
+ barNo++;if(marketMode==="live"&&!Number.isFinite(liveSpot)){lastDecision="NO TRADE";lastReason="No valid live source price; waiting for feeds.";renderLiveStatus();render();return;}const b=seededPrice(barNo);bars.push(b);if(bars.length>240)bars.shift();
  execute(b);
  let eq=equity(b.close);peak=Math.max(peak,eq);const dd=peak>0?(peak-eq)/peak:0;maxDD=Math.max(maxDD,dd);
  if(dd>=cfg.drawLimit&&!halted){halted=true;pending=null;log("RISK","Drawdown limit reached; new entries halted.");if(units>0){halted=false;queue("SELL","drawdown_circuit_breaker");halted=true;}}
@@ -221,7 +221,7 @@ function applySettings(){
  $("settingsNote").textContent="Applied to future orders.";log("SYSTEM","Risk settings updated.");render();
 }
 $("startBtn").addEventListener("click",start);$("pauseBtn").addEventListener("click",stopAuto);$("stepBtn").addEventListener("click",async()=>{if(!running){await refreshLiveMarket();processBar();}});
-$("marketFeed").addEventListener("change",async e=>{marketMode=e.target.value;liveSpot=null;kalshiSnapshot=null;liveError="";renderLiveStatus();if(marketMode==="live"){await refreshLiveMarket();if(liveSpot!==null){bars=[];trades=[];events=[];cash=INITIAL_CASH;units=0;avgEntry=0;entryFees=0;pending=null;peak=INITIAL_CASH;maxDD=0;halted=false;realized=0;wins=0;losses=0;partialTaken=false;barNo=0;lastDecision="HOLD";lastReason="Collecting live samples.";for(let i=0;i<15;i++)bars.push({i,open:liveSpot,high:liveSpot,low:liveSpot,close:liveSpot});barNo=14;log("SYSTEM","Live BTC selected; $10 virtual account reset.");render();drawChart();}}else reset();});$("resetBtn").addEventListener("click",reset);$("applyBtn").addEventListener("click",applySettings);
+$("marketFeed").addEventListener("change",async e=>{marketMode=e.target.value;liveSpot=null;kalshiSnapshot=null;liveError="";renderLiveStatus();if(marketMode==="live"){await refreshLiveMarket();if(liveSpot!==null){bars=[];trades=[];events=[];cash=INITIAL_CASH;units=0;avgEntry=0;entryFees=0;pending=null;peak=INITIAL_CASH;maxDD=0;halted=false;realized=0;wins=0;losses=0;partialTaken=false;barNo=0;lastDecision="HOLD";lastReason="Collecting live samples.";for(let i=0;i<15;i++)bars.push({i,open:liveSpot,high:liveSpot,low:liveSpot,close:liveSpot});barNo=14;log("SYSTEM","Live BTC selected; $10 virtual account reset.");render();drawChart();}}else reset();});$("cryptoAsset").addEventListener("change",async e=>{cryptoAsset=e.target.value;if(marketMode==="live"){stopAuto();liveSpot=null;sourceQuotes=[];kalshiSnapshot=null;liveError="";await refreshLiveMarket();if(liveSpot!==null){bars=[];trades=[];events=[];cash=INITIAL_CASH;units=0;avgEntry=0;entryFees=0;pending=null;peak=INITIAL_CASH;maxDD=0;halted=false;realized=0;wins=0;losses=0;partialTaken=false;barNo=0;for(let i=0;i<15;i++)bars.push({i,open:liveSpot,high:liveSpot,low:liveSpot,close:liveSpot});barNo=14;log("SYSTEM",cryptoAsset+" selected; $10 virtual account reset.");render();drawChart();}}else log("SYSTEM","Selected "+cryptoAsset+" for demo mode.");});$("resetBtn").addEventListener("click",reset);$("applyBtn").addEventListener("click",applySettings);
 reset();
 })();
 </script>
