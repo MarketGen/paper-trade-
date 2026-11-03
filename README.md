@@ -1,0 +1,2 @@
+# paper-trade-
+Trading agent 
