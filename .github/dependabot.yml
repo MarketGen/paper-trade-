@@ -1,0 +1,160 @@
+name: Dependabot Risk Engine
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  security-events: read
+
+jobs:
+  evaluate:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+
+    outputs:
+      risk_score: ${{ steps.risk.outputs.score }}
+      decision: ${{ steps.risk.outputs.decision }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract Dependency Update
+        id: update
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+
+          if echo "$TITLE" | grep -iq "major"; then
+            echo "update_type=major" >> $GITHUB_OUTPUT
+          elif echo "$TITLE" | grep -iq "minor"; then
+            echo "update_type=minor" >> $GITHUB_OUTPUT
+          else
+            echo "update_type=patch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt || true
+          pip install pytest safety bandit
+
+      - name: Run Unit Tests
+        id: test
+        run: |
+          pytest
+        continue-on-error: true
+
+      - name: Run Safety CVE Scan
+        id: safety
+        run: |
+          safety check --json > safety.json || true
+
+      - name: Run Bandit Security Scan
+        id: bandit
+        run: |
+          bandit -r . -f json -o bandit.json || true
+
+      - name: Calculate Risk Score
+        id: risk
+        run: |
+          SCORE=100
+
+          # Update Type
+          case "${{ steps.update.outputs.update_type }}" in
+            patch)
+              SCORE=$((SCORE-5))
+              ;;
+            minor)
+              SCORE=$((SCORE-20))
+              ;;
+            major)
+              SCORE=$((SCORE-50))
+              ;;
+          esac
+
+          # Tests
+          if [ "${{ steps.test.outcome }}" != "success" ]; then
+            SCORE=$((SCORE-40))
+          fi
+
+          # Safety Findings
+          if [ -f safety.json ]; then
+            COUNT=$(grep -o '"id"' safety.json | wc -l)
+            SCORE=$((SCORE-(COUNT*5)))
+          fi
+
+          # Bandit Findings
+          if [ -f bandit.json ]; then
+            COUNT=$(grep -o '"issue_text"' bandit.json | wc -l)
+            SCORE=$((SCORE-(COUNT*3)))
+          fi
+
+          if [ $SCORE -lt 0 ]; then
+            SCORE=0
+          fi
+
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+
+          if [ $SCORE -ge 85 ]; then
+            echo "decision=auto-merge" >> $GITHUB_OUTPUT
+          elif [ $SCORE -ge 60 ]; then
+            echo "decision=review" >> $GITHUB_OUTPUT
+          else
+            echo "decision=block" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment Results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const score = "${{ steps.risk.outputs.score }}";
+            const decision = "${{ steps.risk.outputs.decision }}";
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `
+              ## 🤖 Dependabot Risk Assessment
+
+              Risk Score: **${score}/100**
+
+              Decision: **${decision}**
+
+              ### Policy
+              - 85-100 → Auto Merge
+              - 60-84 → Human Review
+              - 0-59 → Block Update
+              `
+            })
+
+      - name: Auto Merge Safe Updates
+        if: steps.risk.outputs.decision == 'auto-merge'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} \
+          --squash \
+          --auto
+
+      - name: Block Risky Updates
+        if: steps.risk.outputs.decision == 'block'
+        run: |
+          echo "Risk score too low"
+          exit 1# To get started with Dependabot version updates, you'll need to specify which
+# package ecosystems to update and where the package manifests are located.
+# Please see the documentation for all configuration options:
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  - package-ecosystem: "" # See documentation for possible values
+    directory: "/" # Location of package manifests
+    schedule:
+      interval: "weekly"

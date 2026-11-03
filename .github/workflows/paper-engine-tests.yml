@@ -1,4 +1,5 @@
 name: Paper Engine Tests
+name: Browser App Checks
 
 on:
   push:
@@ -23,3 +24,25 @@ jobs:
         run: python -m unittest -v
       - name: Run demo backtest
         run: python desk_pro.py --output backtest_results.json
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check inline JavaScript syntax
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const html = fs.readFileSync('index.html', 'utf8');
+          const start = html.indexOf('<script>');
+          const end = html.indexOf('</script>', start);
+          if (start < 0 || end < 0) throw new Error('No inline application script found');
+          new Function(html.slice(start + 8, end));
+          console.log('Browser JavaScript syntax OK');
+          NODE
+      - name: Verify paper-only guardrails
+        run: |
+          grep -q "Paper trading only" index.html
+          ! grep -Eiq "placeLiveOrder|submitLiveOrder" index.html
